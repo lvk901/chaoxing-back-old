@@ -1,0 +1,19 @@
+# 浏览器 / 自动化相关，绝不入库
+.pw-profile/
+ext/
+*.crx
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 依赖 / 构建产物
+node_modules/
+dist/
