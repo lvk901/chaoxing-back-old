@@ -69,6 +69,51 @@ https://mooc2-ans.chaoxing.com/mooc2-ans/mycourse/stu
 
 因此最省事且最稳的做法就是**在 `document-start` 阶段直接改写 URL**，连新版页面的渲染都省掉。
 
+## 官方实现（权威依据）
+
+反编译新版 bundle（`5326.*.js`）得到的 `backOld` 源码：
+
+```js
+backOld: function () {
+  var t = new URLSearchParams(window.location.search);
+  t.delete("pageHeader");
+  t.delete("v");
+  var e = "/mooc2-ans/mycourse/stu?"
+    .concat(t.toString(), "&courseid=").concat(this.$route.query.courseId,
+    "&clazzid=").concat(this.$route.query.clazzId,
+    "&v=2&pageHeader=-1&hideHead=0&forceMooc2=true");
+  window.top.location = e;
+}
+```
+
+跟实测完全一致：保留全部原参数（含 `t`/`enc`/`ut`），只改路径，再补 5 个固定参数。
+注意它用的是 `pageHeader=-1`，实测 `0` 和 `-1` 都能正常打开。
+
+## 教师端
+
+新版路由表（`fanyav3.js`）里 `/tch` 与 `/stu` 指向**同一个组件模块**，角色区分靠路由而非参数：
+
+```js
+computed: {
+  isStudent: function () { return "/stu" === this.$route.path; }
+}
+```
+
+因此教师端只需换旧版路径：
+
+| 新版 | 旧版 |
+| --- | --- |
+| `/mooc2-ans-vue/fanyav3/stu`、`/studentCourse` | `/mooc2-ans/mycourse/stu` |
+| `/mooc2-ans-vue/fanyav3/tch` | `/mooc2-ans/mycourse/tchcourse` |
+
+依据：
+
+- `mycourse/tchcourse` 作为旧版教师页路径字面量出现在主 chunk（`3050.*.js`）的路径表里
+- 学生账号访问 `/mooc2-ans/mycourse/tchcourse?<参数>` 返回页面标题「提示」、正文「无权操作！」 —— 说明端点存在、只是权限不足，而非 404 / 参数错误
+- 同一 chunk 里教师分支使用 `/mooc2-ans/coursemanagev3/base-info`（学生分支为 `.../stu-base-info`），可见新旧版路径分支的命名规律一致
+
+⚠️ 教师端旧版的参数拼法**无法用学生账号验证**（总是返回「无权操作！」）—— 参数是否完全正确只能由教师账号确认。脚本对此做了容错：直跳落地后如果出现「无权操作」/「无效的参数」，会自动退回新版页并改用点击「回到旧版」。
+
 ## 元素定位（点击兜底用）
 
 新版课程页的「回到旧版」按钮 DOM：

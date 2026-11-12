@@ -4,6 +4,21 @@
 
 > 学习通新版前端（`/mooc2-ans-vue/fanyav3/*`）功能残缺、交互别扭，而官方「回到旧版」入口又藏在新版页面里。这个脚本把那一下点击自动化。
 
+## 支持范围
+
+| 新版路由 | 旧版目标 | 方式 |
+| --- | --- | --- |
+| `/mooc2-ans-vue/fanyav3/stu` | `/mooc2-ans/mycourse/stu` | 直改 URL |
+| `/mooc2-ans-vue/fanyav3/studentCourse` | `/mooc2-ans/mycourse/stu` | 直改 URL |
+| `/mooc2-ans-vue/fanyav3/tch`（教师端） | `/mooc2-ans/mycourse/tchcourse` | 直改 URL |
+| 其它 `/fanyav3/*`（application / index / teachCalendar …） | — | 自动点击「回到旧版」 |
+
+## 三层兜底
+
+1. **直改 URL** —— `document-start` 阶段改写，新版页面不渲染
+2. **自动点击** —— 直跳落地页异常（「无效的参数」/「无权操作」）或路由无映射时，退回新版页并模拟点击「回到旧版」
+3. **浮动按钮** —— 以上都失败时右下角出现「回到旧版」按钮，点它再试一次
+
 ## 功能
 
 - ✅ 打开新版课程页 → 立刻落到旧版页面（`document-start` 阶段完成，无闪屏）
@@ -46,14 +61,23 @@ https://raw.githubusercontent.com/<your-name>/chaoxing-back-old/main/chaoxing-ba
 
 ## 原理
 
-脚本做的事情本质是一次 URL 改写，规则来自对真实跳转的抓包对比（详见 [docs/url-mapping.md](docs/url-mapping.md)）：
+脚本做的事情本质是一次 URL 改写，规则来自官方 `backOld` 实现的逆向与真实跳转对比（详见 [docs/url-mapping.md](docs/url-mapping.md)）：
 
-```
-新版 /mooc2-ans-vue/fanyav3/{stu,studentCourse}
-  → 旧版 /mooc2-ans/mycourse/stu
+```js
+// 官方实现（未压缩后）
+backOld: function () {
+  var t = new URLSearchParams(window.location.search);
+  t.delete("pageHeader"); t.delete("v");
+  var e = "/mooc2-ans/mycourse/stu?" + t
+        + "&courseid=" + courseId + "&clazzid=" + clazzId
+        + "&v=2&pageHeader=-1&hideHead=0&forceMooc2=true";
+  window.top.location = e;
+}
 ```
 
-新版查询串里的 `t`、`enc` 是页面级令牌，必须原样带到旧版 URL，否则服务端返回「无效的参数」；旧版还要额外补上 `courseid` / `clazzid` / `v=2` / `pageHeader=0` / `hideHead=0` / `forceMooc2=true`。
+即：**保留全部原参数**（含 `t` / `enc` / `ut`）**只改路径**，再去掉 `pageHeader`/`v`、补 `courseid`/`clazzid`/`v=2`/`pageHeader`/`hideHead`/`forceMooc2`。
+
+新版查询串里的 `t`、`enc` 是页面级令牌，必须原样带到旧版 URL，否则服务端返回「无效的参数」。
 
 试过但不成立的「更简单办法」（结论：只能改写 URL）：
 
@@ -62,7 +86,8 @@ https://raw.githubusercontent.com/<your-name>/chaoxing-back-old/main/chaoxing-ba
 
 ## 已知问题
 
-- 脚本只处理 `stu` / `studentCourse` 这两个已知新版路由的直接跳转；遇到其它新版路由走「自动点击」兜底，依赖页面里出现 `.back-old` 元素。
+- 脚本只对 `stu` / `studentCourse` / `tch` 三个已知路由做直跳，其它新版路由走自动点击兜底。
+- 教师端旧版地址 `/mooc2-ans/mycourse/tchcourse` 的参数拼法**无法用学生账号验证**（会返回「无权操作！」）；如果教师账号下直跳失败，第二层会自动退回并改用点击。
 - 如果学校定制了新版页面、或用 `fid=74942` 这类特殊配置，官方自己就隐藏了「回到旧版」入口，此时脚本也无能为力。
 - 旧版页里也存在 class 含 `backOld` 的元素，所以选择器只认精确的 `.back-old`，避免误点导致来回跳。
 
